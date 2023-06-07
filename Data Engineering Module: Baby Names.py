@@ -131,11 +131,6 @@ mydataframe.printSchema
 
 # COMMAND ----------
 
- 
-help (SparkSession)
-
-# COMMAND ----------
-
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
 
@@ -148,14 +143,13 @@ from pyspark.sql.functions import col     # needed to be able to refer to col wi
 from pyspark.sql.functions import explode # needed for the explode function
 
 # created entry point
-SparkSession 
 spark = SparkSession.builder.appName("MyBabyNames").getOrCreate()
 
 #read JSON file into a dataframe 
 mydataframe = spark.read.json(baby_names_path, multiLine=True)
 
 #obtain nested data using explode into a second dataframe - names of columns are not identified in schema but defined within the Meta structure 
-NestedDataFrame = mydataframe.select(explode(col("data")))
+NestedDataFrame = mydataframe.select(explode(col("data").alias("mydata")))
 
 # Create a temp table from the nested dataframe and name it baby_names
 NestedDataFrame.createOrReplaceTempView("baby_names")
@@ -163,7 +157,7 @@ NestedDataFrame.createOrReplaceTempView("baby_names")
 # Query the baby_names temp table by refering to the ordinal positions of the columns (since the schema offers no further guidence)
 results = spark.sql("SELECT baby_names.col[0] as sid,  baby_names.col[1] as id, baby_names.col[2] as position, baby_names.col[3] as created_at, baby_names.col[4] as created_meta, baby_names.col[5] as updated_at, baby_names.col[6] as updated_meta, baby_names.col[7] as meta, baby_names.col[8] as year, baby_names.col[9] as first_name, baby_names.col[10] as county, baby_names.col[11] as sex,  baby_names.col[12] as count FROM baby_names")
 
-# Show the results - Please use display(df) instead of df.show() to display your dataframes.
+# Show the results - using display(df) instead of df.show() 
 display(results)
 
 
@@ -182,8 +176,27 @@ display(results)
 
 # COMMAND ----------
 
+spark.sql("SELECT * FROM baby_names").printSchema()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC -- select * FROM baby_names 
+# MAGIC
+# MAGIC  SELECT SPLIT("col", ',')[8] as year, MAX(SPLIT("col", ',')[9]) as namecount FROM baby_names GROUP BY SPLIT("col", ',')[8] ORDER BY SPLIT("col", ',')[8];
+# MAGIC
+
+# COMMAND ----------
+
 # DBTITLE 1,Code Answer
-# Please provide your code answer for Question 2 here. You will need separate cells for your SQL answer and your Python or Scala answer.
+
+# I orginally tried quering the data in the Meta structure, but quickly decided writing a SQL to perform the count and ranking would be easier.
+# so I used an aggragate function, MAX on the name column and a group by based on year. I put an orderby in to make the data more readable.
+aggragate_results = spark.sql("SELECT baby_names.col[8] as year, MAX(baby_names.col[9]) as namecount FROM baby_names GROUP BY baby_names.col[8] ORDER BY baby_names.col[8]") 
+
+display(aggragate_results)
+
 
 # COMMAND ----------
 
