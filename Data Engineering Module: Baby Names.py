@@ -155,10 +155,13 @@ NestedDataFrame = mydataframe.select(explode(col("data").alias("mydata")))
 NestedDataFrame.createOrReplaceTempView("baby_names")
 
 # Query the baby_names temp table by refering to the ordinal positions of the columns (since the schema offers no further guidence)
-results = spark.sql("SELECT baby_names.col[0] as sid,  baby_names.col[1] as id, baby_names.col[2] as position, baby_names.col[3] as created_at, baby_names.col[4] as created_meta, baby_names.col[5] as updated_at, baby_names.col[6] as updated_meta, baby_names.col[7] as meta, baby_names.col[8] as year, baby_names.col[9] as first_name, baby_names.col[10] as county, baby_names.col[11] as sex,  baby_names.col[12] as count FROM baby_names")
+bndataframe = spark.sql("SELECT baby_names.col[0] as sid,  baby_names.col[1] as id, baby_names.col[2] as position, baby_names.col[3] as created_at, baby_names.col[4] as created_meta, baby_names.col[5] as updated_at, baby_names.col[6] as updated_meta, baby_names.col[7] as meta, baby_names.col[8] as year, baby_names.col[9] as first_name, baby_names.col[10] as county, baby_names.col[11] as sex,  baby_names.col[12] as count FROM baby_names")
+
+# create another temp table with the alias column names 
+bndataframe.createOrReplaceTempView("temp_baby_names")
 
 # Show the results - using display(df) instead of df.show() 
-display(results)
+display(spark.sql("SELECT * from temp_baby_names limit 5"))
 
 
 # COMMAND ----------
@@ -180,12 +183,46 @@ spark.sql("SELECT * FROM baby_names").printSchema()
 
 # COMMAND ----------
 
+from pyspark.sql.functions import from_csv
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+# Define the schema of the CSV data
+csvSchema = "sid STRING, id STRING, position INT, created_at INT, created_meta STRING, updated_at INT, updated_meta STRING, meta STRING, year INT, first_name STRING, county STRING, sex STRING, count INT"
+
+# Load the data into a DataFrame
+df3 = spark.read.table("baby_names")
+
+# Parse the CSV data and create a temporary view
+df3.select(from_csv(df3["col"], csvSchema).alias("data")).createOrReplaceTempView("baby_names_view")
+
+# Query the temporary view using SQL
+results = spark.sql("SELECT year, MAX(count) as max_count FROM baby_names_view GROUP BY year")
+
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC
-# MAGIC -- select * FROM baby_names 
+# MAGIC SELECT year, MAX(first_name) as namecount FROM temp_baby_names GROUP BY year ORDER BY year;
 # MAGIC
-# MAGIC  SELECT SPLIT("col", ',')[8] as year, MAX(SPLIT("col", ',')[9]) as namecount FROM baby_names GROUP BY SPLIT("col", ',')[8] ORDER BY SPLIT("col", ',')[8];
-# MAGIC
+
+# COMMAND ----------
+
+# try the window function
+from pyspark.sql.window import *
+from pyspark.sql.functions import *
+
+# Load the data into a DataFrame
+AllBabyNames = spark.sql("SELECT * FROM temp_baby_names") 
+# display(AllBabyNames)
+
+win = Window.partitionBy('year').orderBy(desc('count'))
+
+ranked = AllBabyNames.withColumn("rank", dense_rank().over(win)).where(col("rank")==1).select('first_name', 'count', 'year')
+
+display(ranked)
+
+
 
 # COMMAND ----------
 
@@ -193,8 +230,7 @@ spark.sql("SELECT * FROM baby_names").printSchema()
 
 # I orginally tried quering the data in the Meta structure, but quickly decided writing a SQL to perform the count and ranking would be easier.
 # so I used an aggragate function, MAX on the name column and a group by based on year. I put an orderby in to make the data more readable.
-aggragate_results = spark.sql("SELECT baby_names.col[8] as year, MAX(baby_names.col[9]) as namecount FROM baby_names GROUP BY baby_names.col[8] ORDER BY baby_names.col[8]") 
-
+aggragate_results = spark.sql("SELECT year, MAX(first_name) as totalnamecount FROM temp_baby_names GROUP BY year ORDER BY year") 
 display(aggragate_results)
 
 
