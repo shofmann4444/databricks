@@ -313,9 +313,55 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 # COMMAND ----------
 
 # DBTITLE 1,#1 - Code Answer
-## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
-#df = spark.read.option("inferSchema", True).json(visitors_path)
 
+import xml.etree.ElementTree as ET
+from pyspark.sql.functions import explode
+from pyspark.sql.functions import udf
+from pyspark.sql.types import ArrayType, StructType, StructField, StringType, IntegerType
+
+# Define the schema for the visitors fields
+visitor_schema = StructType([
+    StructField("id", StringType()),
+    StructField("age", IntegerType()),
+    StructField("sex", StringType())
+])
+visitors_schema = ArrayType(visitor_schema)
+
+# Define a UDF to parse the XML data
+def parse_visitors(xml_string):
+    root = ET.fromstring(xml_string)
+    visitors = []
+    for visitor in root.findall("visitor"):
+        visitors.append({
+            "id": visitor.get("id"),
+            "age": int(visitor.get("age")),
+            "sex": visitor.get("sex")
+        })
+    return visitors
+
+parse_visitors_udf = udf(parse_visitors, visitors_schema)
+
+# Load the data into a DataFrame
+df = spark.read.option("inferSchema", True).json(visitors_path)
+InitialRowCount = df.count() # get count for comparison
+
+# Parse the XML data in the visitors field
+df = df.withColumn("visitors", parse_visitors_udf(col("visitors")))
+
+# Select the new columns and existing columns
+df = df.select(
+    "county", "created_at","first_name","id","meta","name_count", "position", "sex", "sid",
+    "updated_at", explode(col("visitors")).alias("visitor"), "year")
+
+#alias the visitor fields so that we know they were for visitors
+df = df.select(
+    "county", "created_at","first_name","id","meta","name_count", "position", "sex", "sid",
+    "updated_at", col("visitor.id").alias("visitor_id"), col("visitor.age").alias("visitor_age"),
+    col("visitor.sex").alias("visitor_sex") , "year")
+
+# Show the resulting DataFrame and total count
+display(df)
+print(f"Began with {InitialRowCount} rows. Row count after visitor rows added: {df.count()}")
 
 # COMMAND ----------
 
