@@ -195,22 +195,22 @@ display(spark.sql("SELECT * from temp_baby_names limit 5"))
 # COMMAND ----------
 
 # DBTITLE 1,Code Answer
-from pyspark.sql.functions import count, col
+from pyspark.sql.functions import count, col, rank 
 from pyspark.sql.window import Window
 
-# Load the data into a DataFrame
+# Load the temp baby table into a DataFrame
 df = spark.table("temp_baby_names")
 
-# Calculate the number of occurrences of each first_name for each year
+# Calculate the number of occurrences of each first_name for each year and store in a dataframe
 namecount_df = df.groupBy("year", "first_name").agg(count("first_name").alias("namecount"))
 
-# Assign a rank to each row based on the count within each year
+# Assign a rank to each row based on the count within each year from the namecount_df dataframe
 ranked_df = namecount_df.withColumn("rank", rank().over(Window.partitionBy("year").orderBy(col("namecount").desc())))
 
-# Filter rows where the rank is equal to 1
+# Filter rows where the rank is equal to 1 - and put the 1's into a dataframe
 result_df = ranked_df.filter(col("rank") == 1).orderBy("year")
 
-# Display the result
+#  Display the ranks = 1 dataframe contents
 display(result_df)
 
 
@@ -222,19 +222,19 @@ display(result_df)
 # MAGIC import org.apache.spark.sql.functions.{count, col, rank}
 # MAGIC import org.apache.spark.sql.expressions.Window
 # MAGIC
-# MAGIC // Load the data into a DataFrame
+# MAGIC // Load the temp baby table into a DataFrame
 # MAGIC val df = spark.table("temp_baby_names")
 # MAGIC
-# MAGIC // Calculate the number of occurrences of each first_name for each year
+# MAGIC // Calculate the number of occurrences of each first_name for each year and store in a dataframe
 # MAGIC val namecount_df = df.groupBy("year", "first_name").agg(count("first_name").alias("namecount"))
 # MAGIC
-# MAGIC // Assign a rank to each row based on the count within each year
+# MAGIC // Assign a rank to each row based on the count within each year from the namecount_df dataframe
 # MAGIC val ranked_df = namecount_df.withColumn("rank", rank().over(Window.partitionBy("year").orderBy(col("namecount").desc)))
 # MAGIC
-# MAGIC // Filter rows where the rank is equal to 1
+# MAGIC // Filter rows where the rank is equal to 1 - and put the 1's into a dataframe
 # MAGIC val result_df = ranked_df.filter(col("rank") === 1).orderBy("year")
 # MAGIC
-# MAGIC // Display the result
+# MAGIC // Display the ranks = 1 dataframe contents
 # MAGIC display(result_df)
 # MAGIC
 
@@ -242,7 +242,17 @@ display(result_df)
 
 # DBTITLE 1,Written Answer
 # MAGIC %md
-# MAGIC Please provide your brief, written description of your code here.
+# MAGIC
+# MAGIC I originally tried to use aggregate SQL functions to achieve the result but I found using the Rank() function with OVER to be easier and likely better performing. The SQL solution required the use of a subquery to find the highest counts of a given name for a given year. The top query uses a where condition to only select the subquery results that were ranked the highest, i.e. having a rank value of 1.
+# MAGIC
+# MAGIC I used the same basic solution for both Python and Scala.
+# MAGIC
+# MAGIC First, count the occurrences for each name for a given year. In SQL, this was accomplished using a subquery with the rank/over/partition function with year and count and a groupby of year and name. In Scala and Python, the name/occurrence count by year was accomplished with the groupby (on name and year) and agg (count of name) functions.  
+# MAGIC
+# MAGIC Second, in the SQL, the query used the subquery as a source of ranked counts of names for years so I filtered the results using a Where with rank = 1 and ordered the results for readability. In Scala and Python, the ranked results were put into a new dataframe. Then another dataframe was created with the ranked results filtered to contain only a value of 1 and ordered by year for readability.
+# MAGIC
+# MAGIC It should be noted that there are ties between some names for some years based on the counts of occurrence so you will see multiple names for a given year for some years e.g. Jacob and Madison for 2008.
+# MAGIC
 
 # COMMAND ----------
 
@@ -257,7 +267,31 @@ display(result_df)
 
 # DBTITLE 1,Written Answer
 # MAGIC %md
-# MAGIC Please write your written answer here.
+# MAGIC
+# MAGIC The observed performance showed the following ranks from fastest to slowest:
+# MAGIC 1)	Python
+# MAGIC 2)	Scala
+# MAGIC 3)	SQL
+# MAGIC
+# MAGIC My Python and Scala solutions were likely to be inefficient since my code created a dataframe for each data manipulation step. I would have thought SQL would be the most efficient but subqueries do make SQL much less efficient, yet the Python and Scala solutions were performing similar rank and aggregation operations.
+# MAGIC
+# MAGIC Spark is executing all three forms of code so optimizations could have been gained by caching in memory the temporary table or experimenting with Spark’s optimization options.
+# MAGIC https://spark.apache.org/docs/latest/sql-performance-tuning.html
+# MAGIC
+# MAGIC PySpark is converted to Spark SQL and then executed on a JVM cluster. Spark was written in Scala so it would seem that Scala may require less translation when calling Spark APIs. Use of UDFs significantly slows operations down. Scala, PySpark and Spark SQL are First Class Spark citizens.
+# MAGIC
+# MAGIC Despite all of these issues, it still seems like PySpark is the fasted both in my observations and based on general user sentiment in online forums. I was not able to locate a recent study (less than 5 years old) providing more guidance on this topic.  
+# MAGIC https://stackoverflow.com/questions/32464122/spark-performance-for-scala-vs-python 
+# MAGIC https://www.databricks.com/blog/2015/04/24/recent-performance-improvements-in-apache-spark-sql-python-dataframes-and-more.html
+# MAGIC https://towardsdatascience.com/faster-spark-queries-with-the-best-of-both-worlds-python-and-scala-7cd0d49b7561
+# MAGIC https://mindfulmachines.io/blog/2018/6/apache-spark-scala-vs-java-v-python-vs-r-vs-sql26
+# MAGIC
+# MAGIC
+# MAGIC Use Dataframes/Datasets or Spark SQL is far more optimal than RDD.  
+# MAGIC https://phoenixnap.com/kb/rdd-vs-dataframe-vs-dataset
+# MAGIC
+# MAGIC "A DataFrame is a Dataset organized into named columns. It is conceptually equivalent to a table in a relational database or a data frame in R/Python, but with richer optimizations under the hood. DataFrames can be constructed from a wide array of sources such as: structured data files, tables in Hive, external databases, or existing RDDs. The DataFrame API is available in Scala, Java, Python, and R. In Scala and Java, a DataFrame is represented by a Dataset of Rows. In the Scala API, DataFrame is simply a type alias of Dataset[Row]. While, in Java API, users need to use Dataset<Row> to represent a DataFrame." from https://spark.apache.org/docs/latest/sql-programming-guide.html
+# MAGIC
 
 # COMMAND ----------
 
