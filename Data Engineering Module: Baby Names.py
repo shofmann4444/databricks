@@ -179,60 +179,64 @@ display(spark.sql("SELECT * from temp_baby_names limit 5"))
 
 # COMMAND ----------
 
-spark.sql("SELECT * FROM baby_names").printSchema()
-
-# COMMAND ----------
-
-from pyspark.sql.functions import from_csv
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
-
-# Define the schema of the CSV data
-csvSchema = "sid STRING, id STRING, position INT, created_at INT, created_meta STRING, updated_at INT, updated_meta STRING, meta STRING, year INT, first_name STRING, county STRING, sex STRING, count INT"
-
-# Load the data into a DataFrame
-df3 = spark.read.table("baby_names")
-
-# Parse the CSV data and create a temporary view
-df3.select(from_csv(df3["col"], csvSchema).alias("data")).createOrReplaceTempView("baby_names_view")
-
-# Query the temporary view using SQL
-results = spark.sql("SELECT year, MAX(count) as max_count FROM baby_names_view GROUP BY year")
-
-
-# COMMAND ----------
-
 # MAGIC %sql
 # MAGIC
-# MAGIC SELECT year, MAX(first_name) as namecount FROM temp_baby_names GROUP BY year ORDER BY year;
+# MAGIC SELECT first_name, year, namecount
+# MAGIC FROM (
+# MAGIC   SELECT first_name, year, COUNT(first_name) as namecount,
+# MAGIC   RANK() OVER (PARTITION BY year ORDER BY COUNT(first_name) DESC) as rank
+# MAGIC   FROM temp_baby_names
+# MAGIC   GROUP BY year, first_name
+# MAGIC ) as subquery
+# MAGIC WHERE rank = 1  
+# MAGIC ORDER BY year;
 # MAGIC
-
-# COMMAND ----------
-
-# try the window function
-from pyspark.sql.window import *
-from pyspark.sql.functions import *
-
-# Load the data into a DataFrame
-AllBabyNames = spark.sql("SELECT * FROM temp_baby_names") 
-# display(AllBabyNames)
-
-win = Window.partitionBy('year').orderBy(desc('count'))
-
-ranked = AllBabyNames.withColumn("rank", dense_rank().over(win)).where(col("rank")==1).select('first_name', 'count', 'year')
-
-display(ranked)
-
-
 
 # COMMAND ----------
 
 # DBTITLE 1,Code Answer
+from pyspark.sql.functions import count, col
+from pyspark.sql.window import Window
 
-# I orginally tried quering the data in the Meta structure, but quickly decided writing a SQL to perform the count and ranking would be easier.
-# so I used an aggragate function, MAX on the name column and a group by based on year. I put an orderby in to make the data more readable.
-aggragate_results = spark.sql("SELECT year, MAX(first_name) as totalnamecount FROM temp_baby_names GROUP BY year ORDER BY year") 
-display(aggragate_results)
+# Load the data into a DataFrame
+df = spark.table("temp_baby_names")
 
+# Calculate the number of occurrences of each first_name for each year
+namecount_df = df.groupBy("year", "first_name").agg(count("first_name").alias("namecount"))
+
+# Assign a rank to each row based on the count within each year
+ranked_df = namecount_df.withColumn("rank", rank().over(Window.partitionBy("year").orderBy(col("namecount").desc())))
+
+# Filter rows where the rank is equal to 1
+result_df = ranked_df.filter(col("rank") == 1).orderBy("year")
+
+# Display the result
+display(result_df)
+
+
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC
+# MAGIC import org.apache.spark.sql.functions.{count, col, rank}
+# MAGIC import org.apache.spark.sql.expressions.Window
+# MAGIC
+# MAGIC // Load the data into a DataFrame
+# MAGIC val df = spark.table("temp_baby_names")
+# MAGIC
+# MAGIC // Calculate the number of occurrences of each first_name for each year
+# MAGIC val namecount_df = df.groupBy("year", "first_name").agg(count("first_name").alias("namecount"))
+# MAGIC
+# MAGIC // Assign a rank to each row based on the count within each year
+# MAGIC val ranked_df = namecount_df.withColumn("rank", rank().over(Window.partitionBy("year").orderBy(col("namecount").desc)))
+# MAGIC
+# MAGIC // Filter rows where the rank is equal to 1
+# MAGIC val result_df = ranked_df.filter(col("rank") === 1).orderBy("year")
+# MAGIC
+# MAGIC // Display the result
+# MAGIC display(result_df)
+# MAGIC
 
 # COMMAND ----------
 
