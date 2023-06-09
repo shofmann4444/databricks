@@ -316,6 +316,7 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 #  Read the births-with-visitor-data.json file into a dataframe and parse the nested XML fields into columns and print the total record count.
 import xml.etree.ElementTree as ET
 from pyspark.sql.functions import explode
+from pyspark.sql.functions import col     # needed to be able to refer to col within a dataframe
 from pyspark.sql.functions import udf
 from pyspark.sql.types import ArrayType, StructType, StructField, StringType, IntegerType
 
@@ -372,13 +373,18 @@ print(f"Began with {InitialRowCount} rows. Row count after visitor rows added: {
 ## Find the county with the highest average number of visitors across all births in that county
 from pyspark.sql.functions import count, avg, upper, first
 
+# Load original data into a DataFrame
+dfOriginal = spark.read.option("inferSchema", True).json(visitors_path)
+
+# verify id is unique identifier for a birth
+print(dfOriginal['id'].is_unique) # True
+
 # Load the temp visitor table into a DataFrame
 df = spark.table("temp_visitors")
 
 # Convert the values in the county column to uppercase
 df = df.withColumn("county", upper(col("county")))
 
-# id appears to be the unique identifier for a birth
 # get the visitor count
 visitors_per_birth = df.groupBy("id", "county").agg(count("visitor_id").alias("visitor_count")) 
 #for debugging purposes
@@ -410,11 +416,11 @@ df = spark.table("temp_visitors")
 # Convert the values in the county column to uppercase
 df = df.withColumn("county", upper(col("county")))
 
-# id appears to be the unique identifier for a birth
-# get the visitor count
+# id is unique identifier for a birth
+# get the average visitor age per county
 avg_visitor_age_per_county = df.groupBy("county" ).agg(avg("visitor_age").alias("avg_visitor_age")) 
 #for debugging purposes
-display(avg_visitor_age_per_county)
+#display(avg_visitor_age_per_county)
 
 #filter
 result = avg_visitor_age_per_county.filter(col("county") == "KINGS")
@@ -459,18 +465,45 @@ print(f"Most common visitor age in Kings county: {common_visitor_age}")
 # DBTITLE 1,#4 - Written Answer
 # MAGIC %md
 # MAGIC
-# MAGIC Exercise: Parse the nested XML fields into columns and print the total record count
+# MAGIC Exercise #1 : Parse the nested XML fields into columns and print the total record count
 # MAGIC
-# MAGIC I found an xml parsing library, defined the structure of the XML in the visitors column. 
-# MAGIC Then I loaded the data, applied the UDF, and exploded the XML.
-# MAGIC I renamed the fields from the visitors field because there was a duplicate id field. I figured it would make the problems easier if the fields were prefixed with 'visitor_'.
-# MAGIC I saved the results into a temp table so that it could be loaded in the subsequent exercises.
+# MAGIC I took these steps:
 # MAGIC
-# MAGIC Exercise: Find the county with the highest average number of visitors across all births in that county
+# MAGIC Wrote some debug code in a separate notebook cell to look at the contents of "/interview-datasets/sa/births/births-with-visitor-data.json". I usually did this for all exercises but deleted it if it contained testing experimentation or debug code not germaine to the requested solution. 
+# MAGIC Defined the structure of the XML in the visitors column. 
+# MAGIC Tried various XML parsing libraries and found xml.etree.ElementTree 
+# MAGIC Loaded the data from births-with-visitor-data.json into a dataframe
+# MAGIC Applied the UDF, and exploded the XML in the same dataframe.
+# MAGIC Prefixed the fields created from the XML in the visitors field with 'visitor_' because it created a duplicate 'id' field. 
+# MAGIC Saved the resulting dataframe into a temp table so that it could be loaded in the subsequent exercises.
+# MAGIC Presented a concluding message to showing the row count as requested by the exercise. I also showed the starting row count since this seemed like a helpful datapoint also.
 # MAGIC
-# MAGIC I loaded the temp table from the previous exercise. Using the upper function, I made all of the county names upper case so that the aggragate functions would work properly.
+# MAGIC Exercise #2 : Find the county with the highest average number of visitors across all births in that county
 # MAGIC
-# MAGIC I determined the id field to be a unique identifier for a birth event so I grouped by id and county and counted the visitors and put it into a dataframe. Then I created a another dataframe from the id and county dataframe by grouping by county and generating the average visitors in each county. I capture the county field in the first row and print out the answer.
+# MAGIC Steps:
+# MAGIC Loaded the temp table from the previous exercise. 
+# MAGIC Aggragate functions are case sensative. Applied the upper function to the county names to make aggragate functions match the names properly in groupings. 
+# MAGIC Loaded in orginal data into a dataframe and determined the 'id' field to be a unique identifier for a birth event using the is_unique function.
+# MAGIC Grouped by id (birth event) and county and counted the visitors and stored results in a dataframe. 
+# MAGIC Using the vistor count by county dataframe, I created a another dataframe by grouping by county and generating the average visitors in each county and sort the dataframe descending. 
+# MAGIC Capture the county field in the first row and print out the answer.
+# MAGIC
+# MAGIC Exercise #3: Find the average visitor age for a birth in the county of KINGS
+# MAGIC
+# MAGIC Steps:
+# MAGIC Started off simalarly to previous exercise loading temp table into a dataframe and cleaning up county names.
+# MAGIC Applied a grouping and aggregate function to get the average visitor age per county
+# MAGIC Viewed results for common sense test but commented it out since it was not needed for solution.
+# MAGIC Filtered out the dataframe by county name 'KINGS'.
+# MAGIC Captured the Average visitor age field in the first row and print out the answer.
+# MAGIC
+# MAGIC Exercise #4: Find the most common birth visitor age in the county of KINGS
+# MAGIC
+# MAGIC Very simalar to previous exercise.
+# MAGIC Loaded temp table into a dataframe and cleaned up county names.
+# MAGIC Filtered out all counties except KINGS in dataframe.
+# MAGIC Applied a grouping based on visitor age and aggregated visitor counts while ordering results descending. The highest count of a given vistor is the most common visitor. 
+# MAGIC Captured the most common visitor age field in the first row and printed out the answer.
 # MAGIC
 # MAGIC
 # MAGIC
