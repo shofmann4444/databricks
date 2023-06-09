@@ -93,40 +93,6 @@ mydataframe.printSchema
 
 # MAGIC %md
 # MAGIC
-# MAGIC I used a another cell at various times to run debugging checks like the following to view schema:
-# MAGIC
-# MAGIC   mydataframe = spark.read.json(baby_names_path, multiLine=True)
-# MAGIC   mydataframe.printSchema
-# MAGIC
-# MAGIC
-# MAGIC The dbutils.fs.head(baby_names_path) command does not show enough of the JSON to see what is going on. I downloaded the JSON from source in browser to examine it: 
-# MAGIC https://health.data.ny.gov/api/views/jxy9-yhdk/rows.json?accessType=DOWNLOAD .
-# MAGIC
-# MAGIC I saw how there was data at the end under the data structure that coincided with the columns defined in the meta structure. I used the columns from the meta struct to determine the ordinal position of the data in the 'data' struct:
-# MAGIC
-# MAGIC "columns" : 
-# MAGIC [ 
-# MAGIC {        "id" : -1,        "name" : "sid",        "dataTypeName" : "meta_data", "fieldName" : ":sid",
-# MAGIC {        "id" : -1,        "name" : "id",        "dataTypeName" : "meta_data",        "fieldName" : ":id"
-# MAGIC {   "id" : -1,        "name" : "position",        "dataTypeName" : "meta_data", "fieldName" : ":position",        
-# MAGIC { "id" : -1,        "name" : "created_at",    "dataTypeName" : "meta_data",    "fieldName" : ":created_at",   
-# MAGIC { "id" : -1,        "name" : "created_meta",        "dataTypeName" : "meta_data",        "fieldName" : ":created_meta", 
-# MAGIC { "id" : -1,        "name" : "updated_at",        "dataTypeName" : "meta_data",        "fieldName" : ":updated_at", 
-# MAGIC {  "id" : -1,        "name" : "updated_meta",        "dataTypeName" : "meta_data",        "fieldName" : ":updated_meta",  
-# MAGIC { "id" : -1,  "name" : "meta",        "dataTypeName" : "meta_data",        "fieldName" : ":meta",        "position"  
-# MAGIC {  "id" : 361599813,        "name" : "Year",        "dataTypeName" : "number",          
-# MAGIC
-# MAGIC
-# MAGIC Here is a mapping of the column definitions in the meta structure to the actual columns in the data structure and the ordinal positions: 
-# MAGIC
-# MAGIC        sid [0]                       id [1]                position [2]    
-# MAGIC "row-emfw_sfk5_5wtx", "00000000-0000-0000-3154-4394D27F2559", 0,
-# MAGIC
-# MAGIC created_at[3]  created_meta[4] updated_at[5]   updated_meta [6]
-# MAGIC 1682529128,     null,         1682529128,         null, 
-# MAGIC
-# MAGIC meta[7]      Year [8]    First Name [9]     County [10]   sex [11]     Count [12]
-# MAGIC "{ }",       "2007",        "ZOEY",        "KINGS",       "F",       "11" ]
 # MAGIC
 
 # COMMAND ----------
@@ -168,7 +134,54 @@ display(spark.sql("SELECT * from temp_baby_names limit 5"))
 
 # DBTITLE 1,Written Answer
 # MAGIC %md
-# MAGIC Please provide your brief, written description of your code here.
+# MAGIC
+# MAGIC I fixed the code in command window 5 to get the JSON and write it to storage location.
+# MAGIC
+# MAGIC Data analysis steps:
+# MAGIC
+# MAGIC I used another cell at various times to run debugging checks like the following to view schema:
+# MAGIC   mydataframe = spark.read.json(baby_names_path, multiLine=True)
+# MAGIC   mydataframe.printSchema
+# MAGIC
+# MAGIC The schema did not contain the desired column names. It showed there were 2 main data structures: 'meta' and 'data'
+# MAGIC
+# MAGIC The dbutils.fs.head(baby_names_path) command does not show enough of the JSON to see what is going on. I downloaded the JSON from source in browser to examine it: 
+# MAGIC https://health.data.ny.gov/api/views/jxy9-yhdk/rows.json?accessType=DOWNLOAD .
+# MAGIC
+# MAGIC I saw how there was data at the end of the file, under the data structure that coincided with the columns defined in the 'meta' structure. I used the column definitions from the 'meta' structure to determine the ordinal position of the data in the 'data' structure:
+# MAGIC
+# MAGIC "columns" : 
+# MAGIC [ 
+# MAGIC {        "id" : -1,        "name" : "sid",        "dataTypeName" : "meta_data", "fieldName" : ":sid",
+# MAGIC {        "id" : -1,        "name" : "id",        "dataTypeName" : "meta_data",        "fieldName" : ":id"
+# MAGIC {   "id" : -1,        "name" : "position",        "dataTypeName" : "meta_data", "fieldName" : ":position",        
+# MAGIC { "id" : -1,        "name" : "created_at",    "dataTypeName" : "meta_data",    "fieldName" : ":created_at",   
+# MAGIC { "id" : -1,        "name" : "created_meta",        "dataTypeName" : "meta_data",        "fieldName" : ":created_meta", 
+# MAGIC { "id" : -1,        "name" : "updated_at",        "dataTypeName" : "meta_data",        "fieldName" : ":updated_at", 
+# MAGIC {  "id" : -1,        "name" : "updated_meta",        "dataTypeName" : "meta_data",        "fieldName" : ":updated_meta",  
+# MAGIC { "id" : -1,  "name" : "meta",        "dataTypeName" : "meta_data",        "fieldName" : ":meta",        "position"  
+# MAGIC {  "id" : 361599813,        "name" : "Year",        "dataTypeName" : "number",          
+# MAGIC
+# MAGIC Here is a mapping of the column definitions in the 'meta' structure to the actual columns in the 'data' structure and the ordinal positions: 
+# MAGIC
+# MAGIC        sid [0]                       id [1]                position [2]    
+# MAGIC "row-emfw_sfk5_5wtx", "00000000-0000-0000-3154-4394D27F2559", 0,
+# MAGIC
+# MAGIC created_at[3]  created_meta[4] updated_at[5]   updated_meta [6]
+# MAGIC 1682529128,     null,         1682529128,         null, 
+# MAGIC
+# MAGIC meta[7]      Year [8]    First Name [9]     County [10]   sex [11]     Count [12]
+# MAGIC "{ }",       "2007",        "ZOEY",        "KINGS",       "F",       "11" ]
+# MAGIC
+# MAGIC Coding steps:
+# MAGIC
+# MAGIC Created the entry point and loaded the JSON file into a dataframe.
+# MAGIC Names of columns are not identified in schema but defined within the Meta structure, so I obtained the nested data using the explode function into a second dataframe. 
+# MAGIC I created an alias 'mydata' of the column 'data' in case it caused naming conflicts, since data is such a common term.
+# MAGIC Wrote into temp table baby_names
+# MAGIC Queried the baby_names temp table into a new dataframe by referring to the ordinal positions of the columns and giving each an alias name.
+# MAGIC Save the resulting dataframe content into a new temp table so that it has column names matching the desired nested data.
+# MAGIC Display the results to complete exercise.
 
 # COMMAND ----------
 
@@ -273,7 +286,7 @@ display(result_df)
 # MAGIC 2)	Scala
 # MAGIC 3)	SQL
 # MAGIC
-# MAGIC My Python and Scala solutions were likely to be inefficient since my code created a dataframe for each data manipulation step. I would have thought SQL would be the most efficient but subqueries do make SQL much less efficient, yet the Python and Scala solutions were performing similar rank and aggregation operations.
+# MAGIC My Python and Scala solutions were likely to be inefficient since my code created a dataframe for each data manipulation step. I would have thought SQL would be the most efficient, but subqueries do make SQL much less efficient, yet the Python and Scala solutions were performing similar rank and aggregation operations.
 # MAGIC
 # MAGIC Spark is executing all three forms of code so optimizations could have been gained by caching in memory the temporary table or experimenting with Spark’s optimization options.
 # MAGIC https://spark.apache.org/docs/latest/sql-performance-tuning.html
@@ -464,34 +477,33 @@ print(f"Most common visitor age in Kings county: {common_visitor_age}")
 
 # DBTITLE 1,#4 - Written Answer
 # MAGIC %md
-# MAGIC
 # MAGIC Exercise #1 : Parse the nested XML fields into columns and print the total record count
 # MAGIC
 # MAGIC I took these steps:
 # MAGIC
-# MAGIC Wrote some debug code in a separate notebook cell to look at the contents of "/interview-datasets/sa/births/births-with-visitor-data.json". I usually did this for all exercises but deleted it if it contained testing experimentation or debug code not germaine to the requested solution. 
+# MAGIC Wrote some debug code in a separate notebook cell to look at the contents of "/interview-datasets/sa/births/births-with-visitor-data.json". I usually did this for all exercises but deleted it if it contained testing experimentation or debug code not germane to the requested solution. 
 # MAGIC Defined the structure of the XML in the visitors column. 
 # MAGIC Tried various XML parsing libraries and found xml.etree.ElementTree 
 # MAGIC Loaded the data from births-with-visitor-data.json into a dataframe
-# MAGIC Applied the UDF, and exploded the XML in the same dataframe.
+# MAGIC Applied the UDF and exploded the XML in the same dataframe.
 # MAGIC Prefixed the fields created from the XML in the visitors field with 'visitor_' because it created a duplicate 'id' field. 
 # MAGIC Saved the resulting dataframe into a temp table so that it could be loaded in the subsequent exercises.
-# MAGIC Presented a concluding message to showing the row count as requested by the exercise. I also showed the starting row count since this seemed like a helpful datapoint also.
+# MAGIC Presented a concluding message to showing the row count as requested by the exercise. I also showed the starting row count since this seemed like a helpful datapoint as well.
 # MAGIC
 # MAGIC Exercise #2 : Find the county with the highest average number of visitors across all births in that county
 # MAGIC
 # MAGIC Steps:
 # MAGIC Loaded the temp table from the previous exercise. 
-# MAGIC Aggragate functions are case sensative. Applied the upper function to the county names to make aggragate functions match the names properly in groupings. 
-# MAGIC Loaded in orginal data into a dataframe and determined the 'id' field to be a unique identifier for a birth event using the is_unique function.
+# MAGIC Aggregate functions are case sensitive. Applied the upper function to the county names to make aggregate functions match the names properly in groupings. 
+# MAGIC Loaded in original data into a dataframe and determined the 'id' field to be a unique identifier for a birth event using the is_unique function.
 # MAGIC Grouped by id (birth event) and county and counted the visitors and stored results in a dataframe. 
-# MAGIC Using the vistor count by county dataframe, I created a another dataframe by grouping by county and generating the average visitors in each county and sort the dataframe descending. 
+# MAGIC Using the visitor count by county dataframe, I created another dataframe by grouping by county and generating the average visitors in each county and sort the dataframe descending. 
 # MAGIC Capture the county field in the first row and print out the answer.
 # MAGIC
 # MAGIC Exercise #3: Find the average visitor age for a birth in the county of KINGS
 # MAGIC
 # MAGIC Steps:
-# MAGIC Started off simalarly to previous exercise loading temp table into a dataframe and cleaning up county names.
+# MAGIC Started off similarly to previous exercise loading temp table into a dataframe and cleaning up county names.
 # MAGIC Applied a grouping and aggregate function to get the average visitor age per county
 # MAGIC Viewed results for common sense test but commented it out since it was not needed for solution.
 # MAGIC Filtered out the dataframe by county name 'KINGS'.
@@ -499,11 +511,8 @@ print(f"Most common visitor age in Kings county: {common_visitor_age}")
 # MAGIC
 # MAGIC Exercise #4: Find the most common birth visitor age in the county of KINGS
 # MAGIC
-# MAGIC Very simalar to previous exercise.
+# MAGIC Very similar to previous exercise.
 # MAGIC Loaded temp table into a dataframe and cleaned up county names.
 # MAGIC Filtered out all counties except KINGS in dataframe.
-# MAGIC Applied a grouping based on visitor age and aggregated visitor counts while ordering results descending. The highest count of a given vistor is the most common visitor. 
+# MAGIC Applied a grouping based on visitor age and aggregated visitor counts while ordering results descending. The highest count of a given visitor is the most common visitor. 
 # MAGIC Captured the most common visitor age field in the first row and printed out the answer.
-# MAGIC
-# MAGIC
-# MAGIC
