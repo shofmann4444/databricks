@@ -313,7 +313,7 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 # COMMAND ----------
 
 # DBTITLE 1,#1 - Code Answer
-
+#  Read the births-with-visitor-data.json file into a dataframe and parse the nested XML fields into columns and print the total record count.
 import xml.etree.ElementTree as ET
 from pyspark.sql.functions import explode
 from pyspark.sql.functions import udf
@@ -359,6 +359,9 @@ df = df.select(
     "updated_at", col("visitor.id").alias("visitor_id"), col("visitor.age").alias("visitor_age"),
     col("visitor.sex").alias("visitor_sex") , "year")
 
+# memorialize this result in a temp table for use in next questions
+df.createOrReplaceTempView("temp_visitors")
+
 # Show the resulting DataFrame and total count
 display(df)
 print(f"Began with {InitialRowCount} rows. Row count after visitor rows added: {df.count()}")
@@ -366,17 +369,90 @@ print(f"Began with {InitialRowCount} rows. Row count after visitor rows added: {
 # COMMAND ----------
 
 # DBTITLE 1,#2 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+## Find the county with the highest average number of visitors across all births in that county
+from pyspark.sql.functions import count, avg, upper, first
+
+# Load the temp visitor table into a DataFrame
+df = spark.table("temp_visitors")
+
+# Convert the values in the county column to uppercase
+df = df.withColumn("county", upper(col("county")))
+
+# id appears to be the unique identifier for a birth
+# get the visitor count
+visitors_per_birth = df.groupBy("id", "county").agg(count("visitor_id").alias("visitor_count")) 
+#for debugging purposes
+#display(visitors_per_birth)
+
+#calculate the averge for each county and order them 
+average_visitors_per_county = visitors_per_birth.groupBy("county") \
+           .agg(avg("visitor_count").alias("avg_visitors")) \
+           .orderBy(col("avg_visitors").desc())
+
+# Show the resulting DataFrame
+display(average_visitors_per_county)
+
+# show the result that answers the question
+first_row = average_visitors_per_county.first()
+county = first_row["county"]
+print(f"County with highest average birth visitors: {county}")
+
 
 # COMMAND ----------
 
 # DBTITLE 1,#3 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+#Find the average visitor age for a birth in the county of KINGS
+from pyspark.sql.functions import count, avg, upper, first
+
+# Load the temp visitor table into a DataFrame
+df = spark.table("temp_visitors")
+
+# Convert the values in the county column to uppercase
+df = df.withColumn("county", upper(col("county")))
+
+# id appears to be the unique identifier for a birth
+# get the visitor count
+avg_visitor_age_per_county = df.groupBy("county" ).agg(avg("visitor_age").alias("avg_visitor_age")) 
+#for debugging purposes
+display(avg_visitor_age_per_county)
+
+#filter
+result = avg_visitor_age_per_county.filter(col("county") == "KINGS")
+
+# Show the resulting DataFrame
+display(result)
+
+# show the result that answers the question
+first_row = result.first()
+average_age = first_row["avg_visitor_age"]
+print(f"Average visitor age in Kings county: {average_age}")
+
 
 # COMMAND ----------
 
 # DBTITLE 1,#4 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+## Find the most common birth visitor age in the county of KINGS
+from pyspark.sql.functions import count, avg, upper, first
+
+# Load the temp visitor table into a DataFrame
+df = spark.table("temp_visitors")
+
+# Convert the values in the county column to uppercase
+df = df.withColumn("county", upper(col("county")))
+
+# Filter the rows to show only the rows for KINGS
+df = df.filter(col("county") == "KINGS")
+
+# Group the data by visitor_age count for each age
+result = df.groupBy("visitor_age").agg(count("*").alias("count")).orderBy(col("count").desc())
+
+# Show the resulting DataFrame
+display(result)
+
+# show the result that answers the question
+first_row = result.first()
+common_visitor_age = first_row["visitor_age"]
+print(f"Most common visitor age in Kings county: {common_visitor_age}")
 
 # COMMAND ----------
 
