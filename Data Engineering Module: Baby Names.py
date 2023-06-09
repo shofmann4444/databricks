@@ -458,4 +458,19 @@ print(f"Most common visitor age in Kings county: {common_visitor_age}")
 
 # DBTITLE 1,#4 - Written Answer
 # MAGIC %md
-# MAGIC Please provide your written answer for Question 4 here
+# MAGIC
+# MAGIC Exercise: Parse the nested XML fields into columns and print the total record count
+# MAGIC
+# MAGIC I found an xml parsing library, defined the structure of the XML in the visitors column. 
+# MAGIC Then I loaded the data, applied the UDF, and exploded the XML.
+# MAGIC I renamed the fields from the visitors field because there was a duplicate id field. I figured it would make the problems easier if the fields were prefixed with 'visitor_'.
+# MAGIC I saved the results into a temp table so that it could be loaded in the subsequent exercises.
+# MAGIC
+# MAGIC Exercise: Find the county with the highest average number of visitors across all births in that county
+# MAGIC
+# MAGIC I loaded the temp table from the previous exercise. Using the upper function, I made all of the county names upper case so that the aggragate functions would work properly.
+# MAGIC
+# MAGIC I determined the id field to be a unique identifier for a birth event so I grouped by id and county and counted the visitors and put it into a dataframe. Then I created a another dataframe from the id and county dataframe by grouping by county and generating the average visitors in each county. I capture the county field in the first row and print out the answer.
+# MAGIC
+# MAGIC
+# MAGIC
